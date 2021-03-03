@@ -1810,13 +1810,13 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
                 inFrame->m_lowres.m_bIsHardScenecut = isHardSC;
         }
 
-        if (m_param->bEnableSceneCutAwareQp && m_param->rc.bStatRead)
+        if ((m_param->bEnableSceneCutAwareQp & BACKWARD) && m_param->rc.bStatRead)
         {
             RateControlEntry * rcEntry = NULL;
             rcEntry = &(m_rateControl->m_rce2Pass[inFrame->m_poc]);
             if(rcEntry->scenecut)
             {
-                int backwardWindow = X265_MIN(int((p->fpsNum / p->fpsDenom) / 10), p->lookaheadDepth);
+                int backwardWindow = X265_MIN(int((m_param->bwdScenecutWindow / 1000.0) * (m_param->fpsNum / m_param->fpsDenom)), p->lookaheadDepth);
                 for (int i = 1; i <= backwardWindow; i++)
                 {
                     int frameNum = inFrame->m_poc - i;
@@ -2242,7 +2242,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
             frameEnc = m_lookahead->getDecidedPicture();
         if (frameEnc && !pass && (!m_param->chunkEnd || (m_encodedFrameNum < m_param->chunkEnd)))
         {
-            if (m_param->bEnableSceneCutAwareQp && m_param->rc.bStatRead)
+            if ((m_param->bEnableSceneCutAwareQp & FORWARD) && m_param->rc.bStatRead)
             {
                 RateControlEntry * rcEntry;
                 rcEntry = &(m_rateControl->m_rce2Pass[frameEnc->m_poc]);
@@ -2253,7 +2253,7 @@ int Encoder::encode(const x265_picture* pic_in, x265_picture* pic_out)
                         m_rateControl->m_lastScenecut = frameEnc->m_poc;
                     else
                     {
-                        int maxWindowSize = int((m_param->scenecutWindow / 1000.0) * (m_param->fpsNum / m_param->fpsDenom) + 0.5);
+                        int maxWindowSize = int((m_param->fwdScenecutWindow / 1000.0) * (m_param->fpsNum / m_param->fpsDenom) + 0.5);
                         if (frameEnc->m_poc > (m_rateControl->m_lastScenecut + maxWindowSize))
                             m_rateControl->m_lastScenecut = frameEnc->m_poc;
                     }
@@ -5167,7 +5167,7 @@ int Encoder::validateAnalysisData(x265_analysis_validate* saveParam, int writeFl
 
         int bcutree;
         X265_FREAD(&bcutree, sizeof(int), 1, m_analysisFileIn, &(saveParam->cuTree));
-        if (loadLevel >= 2 && m_param->rc.cuTree && (!bcutree || saveLevel < 2))
+        if (loadLevel == 10 && m_param->rc.cuTree && (!bcutree || saveLevel < 2))
         {
             x265_log(NULL, X265_LOG_ERROR, "Error reading cu-tree info. Disabling cutree offsets. \n");
             m_param->rc.cuTree = 0;
